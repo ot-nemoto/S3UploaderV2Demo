@@ -1,0 +1,202 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  S3UploaderDemo
+
+  Sample SAM Template for S3UploaderV2Demo
+  
+Parameters:
+  AppName:
+    Type: String
+    Default: S3UploaderV2Demo
+
+Globals:
+  Function:
+    Runtime: nodejs8.10
+    Timeout: 60
+
+Resources:
+  NotifiedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: notified.handler
+
+  ###                                          ######
+   #  #####  ###### #    # ##### # ##### #   # #     #  ####   ####  #
+   #  #    # #      ##   #   #   #   #    # #  #     # #    # #    # #
+   #  #    # #####  # #  #   #   #   #     #   ######  #    # #    # #
+   #  #    # #      #  # #   #   #   #     #   #       #    # #    # #
+   #  #    # #      #   ##   #   #   #     #   #       #    # #    # #
+  ### #####  ###### #    #   #   #   #     #   #        ####   ####  ######
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      AllowUnauthenticatedIdentities: true
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+        unauthenticated: !GetAtt UnauthenticatedRole.Arn
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub Cognito_${IdentityPool.Name}Auth_Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+          Action: sts:AssumeRoleWithWebIdentity
+          Condition:
+            StringEquals:
+              cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+            ForAnyValue:StringLike:
+              cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+      - PolicyName: !Sub Cognito_${IdentityPool.Name}Auth_Policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - mobileanalytics:PutEvents
+            - "cognito-sync:*"
+            - "cognito-identity:*"
+            Resource: "*"
+          - Effect: Allow
+            Action: "s3:*"
+            Resource: !Sub "arn:aws:s3:::${AlbumBucket}/*"
+  UnauthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub Cognito_${IdentityPool.Name}Unauth_Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+          Action: sts:AssumeRoleWithWebIdentity
+          Condition:
+            StringEquals:
+              cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+            ForAnyValue:StringLike:
+              cognito-identity.amazonaws.com:amr: unauthenticated
+      Policies:
+      - PolicyName: !Sub Cognito_${IdentityPool.Name}Auth_Policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - mobileanalytics:PutEvents
+            - "cognito-sync:*"
+            Resource: "*"
+          - Effect: Allow
+            Action: "s3:*"
+            Resource: !Sub "arn:aws:s3:::${AlbumBucket}/*"
+
+   #####                         #######
+  #     # ##### ###### #####     #       #    # #    #  ####  ##### #  ####  #    #  ####
+  #         #   #      #    #    #       #    # ##   # #    #   #   # #    # ##   # #
+   #####    #   #####  #    #    #####   #    # # #  # #        #   # #    # # #  #  ####
+        #   #   #      #####     #       #    # #  # # #        #   # #    # #  # #      #
+  #     #   #   #      #         #       #    # #   ## #    #   #   # #    # #   ## #    #
+   #####    #   ###### #         #        ####  #    #  ####    #   #  ####  #    #  ####
+  StateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub ${AppName}-StateMachine
+      RoleArn: !GetAtt StepFunctionsServiceRole.Arn
+      DefinitionString: !Sub |-
+        {
+          "Comment": "${AppName}",
+          "StartAt": "NotifiedFunction",
+          "States": {
+            "NotifiedFunction": {
+              "Type": "Task",
+              "Resource": "${NotifiedFunction.Arn}",
+              "InputPath": "$",
+              "End": true
+            }
+          }
+        }
+  StepFunctionsServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - states.amazonaws.com
+      Policies:
+      - PolicyName: !Sub ${AppName}InvokePolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource:
+            - !Sub ${NotifiedFunction.Arn}
+
+   #####   #####
+  #     # #     #
+  #             #
+   #####   #####
+        #       #
+  #     # #     #
+   #####   #####
+  AlbumBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicReadWrite
+      CorsConfiguration:
+        CorsRules:
+        - AllowedHeaders:
+          - "*"
+          AllowedMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - HEAD
+          AllowedOrigins:
+          - "*"
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Statement:
+        - Action:
+          - s3:GetObject
+          Effect: Allow
+          Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/*"
+          Principal: "*"
+
+Outputs:
+  IdentityPool:
+    Value: !Ref IdentityPool
+  Region:
+    Value: !Sub ${AWS::Region}
+  AlbumBucket:
+    Value: !Ref AlbumBucket
+  WebsiteBucket:
+    Value: !Ref WebsiteBucket
+  WebsiteURL:
+    Value: !GetAtt WebsiteBucket.WebsiteURL

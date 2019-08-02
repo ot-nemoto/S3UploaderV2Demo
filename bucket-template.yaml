@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: '2010-09-09'
+ 
+Parameters:
+  AppName:
+    Type: String
+    Default: S3UploaderV2Demo
+
+Resources:
+  DeployBucket:
+    Type: AWS::S3::Bucket
+
+Outputs:
+  DeployBucket:
+    Value: !Ref DeployBucket
