@@ -10,6 +10,8 @@
 
 ### 構成
 
+![構成図](https://raw.githubusercontent.com/ot-nemoto/S3UploaderV2Demo/feature/images/S3UploaderV2Demo.jpg)
+
 - Websiteから画像をアップロード。
   - アップロードする際にRoleはIDPoolで管理
   - アップロード先の Bucket は `Album`
