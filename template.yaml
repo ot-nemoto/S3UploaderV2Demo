@@ -171,12 +171,14 @@ Resources:
           - HEAD
           AllowedOrigins:
           - "*"
+    DeletionPolicy: Delete
   WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: PublicRead
       WebsiteConfiguration:
         IndexDocument: index.html
+    DeletionPolicy: Delete
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
