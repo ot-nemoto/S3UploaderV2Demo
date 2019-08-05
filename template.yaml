@@ -229,6 +229,65 @@ Resources:
       IsLogging: true
       IsMultiRegionTrail: false
       S3BucketName: !Ref TrailBucket
+      EventSelectors:
+      - DataResources:
+        - Type: AWS::S3::Object
+          Values:
+          - !Sub "arn:aws:s3:::${AlbumBucket}/"
+  EventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "AWS API Call via CloudTrail"
+          ],
+          "detail": {
+            "eventSource": [
+              "s3.amazonaws.com"
+            ],
+            "eventName": [
+              "PutObject",
+              "RestoreObject"
+            ],
+            "requestParameters": {
+              "bucketName": [
+                "${AlbumBucket}"
+              ]
+            }
+          }
+        }
+      Name: !Sub ${AppName}-logs
+      State: ENABLED
+      Targets:
+      - Arn: !Ref StateMachine
+        Id: 1
+        RoleArn: !GetAtt EventsRuleRole.Arn
+  EventsRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub AWS_Events_Invoke_Step_Functions_${AppName}
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: events.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: !Sub AWS_Events_Invoke_Step_Functions_${AppName}_Policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - states:StartExecution
+            Resource:
+            - !Ref StateMachine
 
 Outputs:
   IdentityPool:
