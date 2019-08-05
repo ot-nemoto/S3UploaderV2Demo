@@ -191,6 +191,45 @@ Resources:
           Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/*"
           Principal: "*"
 
+   #####                              #######
+  #     # #       ####  #    # #####     #    #####    ##   # #
+  #       #      #    # #    # #    #    #    #    #  #  #  # #
+  #       #      #    # #    # #    #    #    #    # #    # # #
+  #       #      #    # #    # #    #    #    #####  ###### # #
+  #     # #      #    # #    # #    #    #    #   #  #    # # #
+   #####  ######  ####   ####  #####     #    #    # #    # # ######
+  TrailBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+  TrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TrailBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Sid: AWSCloudTrailAclCheck
+          Effect: Allow
+          Principal:
+            Service: cloudtrail.amazonaws.com
+          Action: s3:GetBucketAcl
+          Resource: !Sub "arn:aws:s3:::${TrailBucket}"
+        - Sid: AWSCloudTrailWrite
+          Effect: Allow
+          Principal:
+            Service: cloudtrail.amazonaws.com
+          Action: s3:PutObject
+          Resource: !Sub "arn:aws:s3:::${TrailBucket}/AWSLogs/${AWS::AccountId}/*"
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
+  CloudTrail:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      IsLogging: true
+      IsMultiRegionTrail: false
+      S3BucketName: !Ref TrailBucket
+
 Outputs:
   IdentityPool:
     Value: !Ref IdentityPool
